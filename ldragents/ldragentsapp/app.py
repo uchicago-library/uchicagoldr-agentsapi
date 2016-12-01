@@ -31,6 +31,9 @@ for x in parser["CONFIG"]:
         v = True
     if v == "False":
         v = False
-    app.config[x.upper()] = v
+    if x.upper() == "VALID_KEYS":
+        app.config[x.upper()] = v.split(',')
+    else:
+        app.config[x.upper()] = v
 
 app.register_blueprint(BP)

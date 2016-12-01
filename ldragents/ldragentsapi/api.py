@@ -14,22 +14,40 @@ from uchicagoldrtoolsuite.bit_level.lib.ldritems.ldrpath import LDRPath
 __AUTHOR__ = "Tyler Danstrom"
 __EMAIL__ = "tdanstrom@uchicago.edu"
 __VERSION__ = "1.0.0"
-__DESCRIPTION__ = "a restful application to resolve the various parts of a material suite in the LDR to downloadeable files"
+__DESCRIPTION__ = "a restful application to enable getting and posting PREMIS agent data over the web"
 __COPYRIGHT__ = "University of Chicago, 2016"
 
 _EXCEPTION_HANDLER = APIExceptionHandler()
 
-class EditedField():
+class EditedField(object):
     def __init__(self, fieldname, fieldvalue):
-        self.field = fieldname
-        self.value = fieldvalue
+        if fieldname in ["name", "type", "event"]:
+            self.field = fieldname
+            self.value = fieldvalue
+
+    def __str__(self):
+        return jsonify({"field": self.field, "value": self.value})
+
+class Agent(object):
+    def __init__(self, agent_fields):
+        self.fields = agent_fields
+        self.identifier = uuid4().hex
+
+    def __str__(self):
+        return jsonify({"name": [x.value for x.field == 'name'][0],
+                        "type": [x.value for x.field == "type"][0],
+                        "identifier": self.identifier})
 
 def evaluate_input(a_dict):
     from flask import current_app
     assert isinstance(a_dict, dict)
-    for n_key in a_dict.keys():
-        if n_key in current_app.config["VALID_KEYS"]:
-            raise ValueError("{} is not a legal field for posting data".format(n_key))
+    for key, value in a_dict.items():
+        new_field_object = EditField(key, value)
+ 
+
+def get_current_agents():
+    from flask import current_app
+    return build_a_generator(current_app.config["AGENTS_PATH"])
 
 def build_a_generator(path):
     for n_entry in scandir(path):
@@ -37,10 +55,6 @@ def build_a_generator(path):
             yield from build_a_generator(n_entry.path)
         elif n_entry.path.endswith("agent.xml"):
             yield extract_core_information_from_agent_record(n_entry.path)
-
-def get_current_agents():
-    from flask import current_app
-    return build_a_generator(current_app.config["AGENTS_PATH"])
 
 class AllAgents(Resource):
     def get(self):

@@ -1,0 +1,16 @@
+Metadata-Version: 1.1
+Name: ldragents
+Version: 1.0.0
+Summary: An application providing access to the PREMIS agent records via the web
+Home-page: UNKNOWN
+Author: Tyler Danstrom
+Author-email: ['tdanstrom@uchicago.edu']
+License: UNKNOWN
+Description: UNKNOWN
+Keywords: uchicago,repository,content retrieval
+Platform: UNKNOWN
+Classifier: Programming Language :: Python
+Classifier: Programming Language :: Python :: 3
+Classifier: Intended Audience :: Developers
+Classifier: Operating System :: Unix
+Classifier: Topic :: Software Development :: Libraries :: Python Modules

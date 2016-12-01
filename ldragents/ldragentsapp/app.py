@@ -2,7 +2,7 @@ from flask import Flask
 from configparser import ConfigParser
 from sys import stderr
 
-from ldragents.ldragentsapi import BP 
+from ..ldragentsapi.api import BP
 
 def retrieve_resource_string(resource_path, pkg_name=None):
     """

@@ -75,6 +75,7 @@ class ASpecificAgent(Resource):
             return jsonify(resp.dictify())
         except Exception as e:
             return jsonify(_EXCEPTION_HANDLER.handle(e).dictify())
+
     def post(premisid):
         # need to post an updated agent record for the agent with premisid
         pass

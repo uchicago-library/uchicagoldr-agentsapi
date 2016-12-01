@@ -4,9 +4,9 @@ setup(
     name = 'ldragents',
     version = '1.0.0',
     author = "Tyler Danstrom",
-    author_email = ["tdanstriom@uchicago.edu"],
+    author_email = ["tdanstrom@uchicago.edu"],
     packages = ['ldragents'],
-    description = "An application providing access to the contents of the ldr via restful requests",
+    description = "An application providing access to the PREMIS agent records via the web",
     keywords = ["uchicago","repository","content retrieval"],
     classifiers = [
         "Programming Language :: Python",

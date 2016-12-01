@@ -79,6 +79,19 @@ class ASpecificAgent(Resource):
         # need to post an updated agent record for the agent with premisid
         pass
 
+class AgentEvents(Resource):
+    def get(premisid):
+        # need to get the premisid given, locate the agent with that premisid as its identifier,
+        # and retrieve the events associated with that agent. It should then package up those events
+        # records into a dictionary for return as an APIResponse
+        pass
+
+    def post(premisid):
+        # need to get the premisid id given, locate the agent with that premisid as its identiifier, 
+        # and create an premis event out of the data passed in the post data and finally attach that new
+        # event to the agent identified.
+        pass
+
 # Create our app, hook the API to it, and add our resources
 
 BP = Blueprint("ldragentsapi", __name__)
@@ -87,4 +100,4 @@ API = Api(BP)
 # file retrieval endpoints
 API.add_resource(AllAgents, "/agents")
 API.add_resource(ASpecificAgent, "/agents/<string:premisid>")
-
+API.add_resource(AgentEvents, "/agents/<string:premisid>/events")

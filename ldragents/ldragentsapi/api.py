@@ -6,7 +6,7 @@ import re
 from uuid import uuid4
 #from werkzeug.utils import secure_filename
 
-from ldrpremisbuilding import * 
+from ldrpremisbuilding.utils import *
 from uchicagoldrapicore.responses.apiresponse import APIResponse
 from uchicagoldrapicore.responses.apiresponse import APIResponse
 from uchicagoldrapicore.lib.apiexceptionhandler import APIExceptionHandler
@@ -49,7 +49,7 @@ def build_a_generator(path):
         if n_entry.is_dir():
             yield from build_a_generator(n_entry.path)
         elif n_entry.path.endswith("agent.xml"):
-            yield extract_core_information_from_agent_record(n_entry.path)
+            yield extract_core_information_agent_record(n_entry.path)
 
 class AllAgents(Resource):
     def get(self):
@@ -80,7 +80,7 @@ class AllAgents(Resource):
             else:
                 resp = APIResponse(answer["status"], data={"agents": answer})
             return jsonify(resp.dictify())
-        except Exception as errorr:
+        except Exception as error:
             return jsonify(_EXCEPTION_HANDLER.handle(error).dictify())
 
     def post(self):
@@ -91,10 +91,11 @@ class AllAgents(Resource):
             test_result = evaluate_input(data)
             if test_result:
                 new_agent = DataTransferObject(data["name"], data["type"])
-                create_new_agent_record(current_app.config["AGENTS_PATH"], new_agent)
-                return jsonify(APIResponse("success", data=data).dictify())
+                new_agent = create_new_premis_agent(current_app.config["AGENTS_PATH"], new_agent)
+                resp = APIResponse("success", data={"result":"created", "identifier": new_agent})
             else:
-                return jsonify(APIResponse("fail", data={"result": "hi"}).dictify())
+                resp = APIResponse("fail", data={"result": "not created"})
+            return jsonify(resp.dictify())
         except Exception as error:
             return jsonify(_EXCEPTION_HANDLER.handle(error).dictify())
 
@@ -128,14 +129,15 @@ class ASpecificAgent(Resource):
                 data = request.get_json(force=True)
                 test_result = evaluate_input(data)
                 if test_result:
-                    new_agent = Agent(data["name"], data["type"])
-                    
-                    return jsonify(APIResponse("success", data=str(new_agent)).dictify())
+                    edited_field_name = data.get("field")
+                    edited_field_value = data.get("value")
+                    new_agent = create_new_premis_agent(current_app.config["AGENTS_PATH"], new_agent, edit_identifier=answer.identifier)
+                    resp = APIResponse("success", data={"field":edited_field, "value":edited_value, "identifier":answer.identifier})
                 else:
-                    return jsonify(APIResponse("fail", data={"result": test_result[1]}))
+                    resp = APIResponse("fail", data={"result": test_result[1]})
             else:
-                output = {"status":"failure", "error":"no results"}
-                return APIResponse(output["status"], data=output)
+                resp = APIResponse("fail", data={"result":"no results"})
+            return jsonify(resp.dictify())
 
         except Exception as error:
             return jsonify(_EXCEPTION_HANDLER.handle(error).dictify())
@@ -184,12 +186,12 @@ class AgentEvents(Resource):
                 data = request.get_json(force=True)
                 test_result = evaluate_input(data)
                 if test_result:
-                    return jsonify(APIResponse("success", data=data).dictify())
+                    resp = APIResponse("success", data=data).dictify()
                 else:
-                    return jsonify(APIResponse("fail", data={"result": test_result[1]}))
+                    resp = APIResponse("fail", data={"result": test_result[1]})
             else:
-                output = {"status":"failure", "error":"no results"}
-            return APIResponse(output["status"], data=output)
+                resp = APIResponse("fail", data={"result":"no results"})
+            return jsonify(resp.dictify())
         except Exception as error:
             return jsonify(_EXCEPTION_HANDLER.handle(error).dictify())
 

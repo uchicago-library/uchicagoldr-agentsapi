@@ -1,6 +1,7 @@
 from flask import g, jsonify, Blueprint, request, send_file, make_response
 from flask_restful import Resource, Api, reqparse
 from os import scandir
+from uuid import uuid4
 from werkzeug.utils import secure_filename
 
 from pypremis.lib import PremisRecord
@@ -8,8 +9,6 @@ from pypremis.nodes import *
 from uchicagoldrapicore.responses.apiresponse import APIResponse
 from uchicagoldrapicore.responses.apiresponse import APIResponse
 from uchicagoldrapicore.lib.apiexceptionhandler import APIExceptionHandler
-from uchicagoldrtoolsuite.bit_level.lib.readers.filesystemarchivereader import FileSystemArchiveReader
-from uchicagoldrtoolsuite.bit_level.lib.ldritems.ldrpath import LDRPath
 
 __AUTHOR__ = "Tyler Danstrom"
 __EMAIL__ = "tdanstrom@uchicago.edu"
@@ -19,7 +18,7 @@ __COPYRIGHT__ = "University of Chicago, 2016"
 
 _EXCEPTION_HANDLER = APIExceptionHandler()
 
-class EditedField(object):
+class AgentField(object):
     def __init__(self, fieldname, fieldvalue):
         if fieldname in ["name", "type", "event"]:
             self.field = fieldname
@@ -34,16 +33,15 @@ class Agent(object):
         self.identifier = uuid4().hex
 
     def __str__(self):
-        return jsonify({"name": [x.value for x.field == 'name'][0],
-                        "type": [x.value for x.field == "type"][0],
+        return jsonify({"name": [x.value for x in self.fields if x.field == 'name'][0],
+                        "type": [x.value for x in self.fields if x.field == "type"][0],
                         "identifier": self.identifier})
 
 def evaluate_input(a_dict):
     from flask import current_app
     assert isinstance(a_dict, dict)
     for key, value in a_dict.items():
-        new_field_object = EditField(key, value)
- 
+        new_field_object = AgentField(key, value)
 
 def get_current_agents():
     from flask import current_app
@@ -73,7 +71,7 @@ class AllAgents(Resource):
                         answer[tally] = row_dict
                         tally += 1
             else:
-                # need to return a list of all agents in the system 
+                # need to return a list of all agents in the system
                 tally = 1
                 for n_agent in agents_generator:
                     row_dict = {'agent name':n_agent.name, 'agent role': n_agent.role,
@@ -85,8 +83,8 @@ class AllAgents(Resource):
             else:
                 resp = APIResponse(answer["status"], data={"agents": answer})
             return jsonify(resp.dictify())
-        except Exception as e:
-            return jsonify(_EXCEPTION_HANDLER.handle(e).dictify())
+        except Exception as errorrror:
+            return jsonify(_EXCEPTION_HANDLER.handle(error).dictify())
 
     def post(self):
         # need to post a new agent record containing information from post data
@@ -94,11 +92,11 @@ class AllAgents(Resource):
             data = request.get_json(force=True)
 
             return jsonify(APIResponse("success", data=data).dictify())
-        except Exception as e:
-            return jsonify(_EXCEPTION_HANDLER.handle(e).dictify())
+        except Exception as errorrror:
+            return jsonify(_EXCEPTION_HANDLER.handle(error).dictify())
 
 class ASpecificAgent(Resource):
-    def get(premisid):
+    def get(self, premisid):
         try:
             agents_generator = get_current_agents()
             answer = None
@@ -110,12 +108,12 @@ class ASpecificAgent(Resource):
                           "agent_type":answer.type, "loc": join("/agent", answer.identifier)}
             else:
                 output = {"status":"failure", "error":"no results"}
-            resp =  APIResponse(output["status"], data=output)
+            resp = APIResponse(output["status"], data=output)
             return jsonify(resp.dictify())
-        except Exception as e:
-            return jsonify(_EXCEPTION_HANDLER.handle(e).dictify())
+        except Exception as errorrror:
+            return jsonify(_EXCEPTION_HANDLER.handle(error).dictify())
 
-    def post(premisid):
+    def post(self, premisid):
         # need to post an updated agent record for the agent with premisid
         try:
             agents_generator = get_current_agents()
@@ -133,8 +131,8 @@ class ASpecificAgent(Resource):
             else:
                 output = {"status":"failure", "error":"no results"}
             return APIResponse(output["status"], data=output)
-        except Exception as e:
-            return jsonify(_EXCEPTION_HANDLER.handle(e).dictify())
+        except Exception as error:
+            return jsonify(_EXCEPTION_HANDLER.handle(error).dictify())
 
 class AgentEvents(Resource):
     def get(premisid):
@@ -158,8 +156,8 @@ class AgentEvents(Resource):
                 output = {"status":"failure", "error":"no results"}
             resp = APIResponse(output["status"], data=output)
             return jsonify(resp.dictify())
-        except Exception as e:
-            return jsonify(_EXCEPTION_HANDLER.handle(e).dictify())
+        except Exception as error:
+            return jsonify(_EXCEPTION_HANDLER.handle(error).dictify())
 
     def post(premisid):
         # need to get the premisid id given, locate the agent with that premisid as its identiifier, 
@@ -179,8 +177,8 @@ class AgentEvents(Resource):
             else:
                 output = {"status":"failure", "error":"no results"}
             return APIResponse(output["status"], data=output)
-        except Exception as e:
-            return jsonify(_EXCEPTION_HANDLER.handle(e).dictify())
+        except Exception as error:
+            return jsonify(_EXCEPTION_HANDLER.handle(error).dictify())
 
 # Create our app, hook the API to it, and add our resources
 BP = Blueprint("ldragentsapi", __name__)

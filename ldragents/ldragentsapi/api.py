@@ -1,11 +1,12 @@
 from flask import g, jsonify, Blueprint, request, send_file, make_response
 from flask_restful import Resource, Api, reqparse
 from os import scandir
+from os.path import join
+import re
 from uuid import uuid4
-from werkzeug.utils import secure_filename
+#from werkzeug.utils import secure_filename
 
-from pypremis.lib import PremisRecord
-from pypremis.nodes import *
+from ldrpremisbuilding import * 
 from uchicagoldrapicore.responses.apiresponse import APIResponse
 from uchicagoldrapicore.responses.apiresponse import APIResponse
 from uchicagoldrapicore.lib.apiexceptionhandler import APIExceptionHandler
@@ -18,30 +19,26 @@ __COPYRIGHT__ = "University of Chicago, 2016"
 
 _EXCEPTION_HANDLER = APIExceptionHandler()
 
-class AgentField(object):
-    def __init__(self, fieldname, fieldvalue):
-        if fieldname in ["name", "type", "event"]:
-            self.field = fieldname
-            self.value = fieldvalue
+class DataTransferObject(object):
+    def __init__(self, agent_name, agent_type):
+        self.name = agent_name
+        self.type = agent_type
 
     def __str__(self):
-        return jsonify({"field": self.field, "value": self.value})
-
-class Agent(object):
-    def __init__(self, agent_fields):
-        self.fields = agent_fields
-        self.identifier = uuid4().hex
-
-    def __str__(self):
-        return jsonify({"name": [x.value for x in self.fields if x.field == 'name'][0],
-                        "type": [x.value for x in self.fields if x.field == "type"][0],
-                        "identifier": self.identifier})
+        d = {"name": self.name,
+             "type": self.type}
+        return jsonify(d)
 
 def evaluate_input(a_dict):
     from flask import current_app
     assert isinstance(a_dict, dict)
     for key, value in a_dict.items():
-        new_field_object = AgentField(key, value)
+        if key not in current_app.config["VALID_KEYS"]:
+            return (False, "{} is not a legal key")
+        elif not re.compile(current_app.config[key.upper()]).match(value):
+            return (False, "{} does not match required specification for key {}".\
+            format(value, key))
+    return True
 
 def get_current_agents():
     from flask import current_app
@@ -83,16 +80,22 @@ class AllAgents(Resource):
             else:
                 resp = APIResponse(answer["status"], data={"agents": answer})
             return jsonify(resp.dictify())
-        except Exception as errorrror:
+        except Exception as errorr:
             return jsonify(_EXCEPTION_HANDLER.handle(error).dictify())
 
     def post(self):
         # need to post a new agent record containing information from post data
+        from flask import current_app
         try:
             data = request.get_json(force=True)
-
-            return jsonify(APIResponse("success", data=data).dictify())
-        except Exception as errorrror:
+            test_result = evaluate_input(data)
+            if test_result:
+                new_agent = DataTransferObject(data["name"], data["type"])
+                create_new_agent_record(current_app.config["AGENTS_PATH"], new_agent)
+                return jsonify(APIResponse("success", data=data).dictify())
+            else:
+                return jsonify(APIResponse("fail", data={"result": "hi"}).dictify())
+        except Exception as error:
             return jsonify(_EXCEPTION_HANDLER.handle(error).dictify())
 
 class ASpecificAgent(Resource):
@@ -107,10 +110,10 @@ class ASpecificAgent(Resource):
                 output = {"status":"success", "agent_name":answer.name, "agent_role":answer.role,
                           "agent_type":answer.type, "loc": join("/agent", answer.identifier)}
             else:
-                output = {"status":"failure", "error":"no results"}
+                output = {"status":"fail", "error":"no results"}
             resp = APIResponse(output["status"], data=output)
             return jsonify(resp.dictify())
-        except Exception as errorrror:
+        except Exception as error:
             return jsonify(_EXCEPTION_HANDLER.handle(error).dictify())
 
     def post(self, premisid):
@@ -122,23 +125,29 @@ class ASpecificAgent(Resource):
                 if n_agent.identifier == premisid:
                     answer = n_agent
             if answer:
-                parser = reqparse.RequestParser()
-                parser.add_argument("edited_fields", type=EditedField, action='append',
-                                    help="A list of key:value pairs of field name " +\
-                                         "and values to modify for this agent")
-                args = parser.parse_args()
-                add_event_to_agent(answer.identifier, args["eventid"])
+                data = request.get_json(force=True)
+                test_result = evaluate_input(data)
+                if test_result:
+                    new_agent = Agent(data["name"], data["type"])
+                    
+                    return jsonify(APIResponse("success", data=str(new_agent)).dictify())
+                else:
+                    return jsonify(APIResponse("fail", data={"result": test_result[1]}))
             else:
                 output = {"status":"failure", "error":"no results"}
-            return APIResponse(output["status"], data=output)
+                return APIResponse(output["status"], data=output)
+
+        except Exception as error:
+            return jsonify(_EXCEPTION_HANDLER.handle(error).dictify())
         except Exception as error:
             return jsonify(_EXCEPTION_HANDLER.handle(error).dictify())
 
 class AgentEvents(Resource):
-    def get(premisid):
-        # need to get the premisid given, locate the agent with that premisid as its identifier,
-        # and retrieve the events associated with that agent. It should then package up those events
-        # records into a dictionary for return as an APIResponse
+    def get(self, premisid):
+        # need to get the premisid given, locate the agent with that 
+        # premisid as its identifier, and retrieve the events associated 
+        # with that agent. It should then package up those events records 
+        # into a dictionary for return as an APIResponse
         try:
             agents_generator = get_current_agents()
             answer = None
@@ -146,7 +155,9 @@ class AgentEvents(Resource):
                 if n_agent.identifier == premisid:
                     answer = n_agent
             if answer:
-                output = {"status":"success", "agent_loc": join("/agents", answer.identifier), "events":[]}
+                output = {"status":"success",
+                          "agent_loc": join("/agents", answer.identifier),
+                          "events":[]}
                 events_dict = {}
                 for n_event in n_agent.events:
                     event_loc = join(n_agent.identiifer, "/events", n_event.identifier)
@@ -159,10 +170,10 @@ class AgentEvents(Resource):
         except Exception as error:
             return jsonify(_EXCEPTION_HANDLER.handle(error).dictify())
 
-    def post(premisid):
-        # need to get the premisid id given, locate the agent with that premisid as its identiifier, 
-        # and create an premis event out of the data passed in the post data and finally attach that new
-        # event to the agent identified.
+    def post(self, premisid):
+        # need to get the premisid id given, locate the agent with that premisid 
+        # as its identiifier, and create an premis event out of the data passed 
+        # in the post data and finally attach that new event to the agent identified.
         try:
             agents_generator = get_current_agents()
             answer = None
@@ -170,10 +181,12 @@ class AgentEvents(Resource):
                 if n_agent.identifier == premisid:
                     answer = n_agent
             if answer:
-                parser = reqparse.RequestParser()
-                parser.add_argument("eventid", type=str, help="An agent's name")
-                args = parser.parse_args()
-                add_event_to_agent(answer.identifier, args["eventid"])
+                data = request.get_json(force=True)
+                test_result = evaluate_input(data)
+                if test_result:
+                    return jsonify(APIResponse("success", data=data).dictify())
+                else:
+                    return jsonify(APIResponse("fail", data={"result": test_result[1]}))
             else:
                 output = {"status":"failure", "error":"no results"}
             return APIResponse(output["status"], data=output)

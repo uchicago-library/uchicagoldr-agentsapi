@@ -1,4 +1,5 @@
 ldrresolver.egg-info
+.vscode*
 *__pycache__*
 *build*
 *dist*

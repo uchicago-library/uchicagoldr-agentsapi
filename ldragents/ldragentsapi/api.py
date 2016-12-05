@@ -19,15 +19,40 @@ __COPYRIGHT__ = "University of Chicago, 2016"
 
 _EXCEPTION_HANDLER = APIExceptionHandler()
 
-class DataTransferObject(object):
-    def __init__(self, agent_name, agent_type):
-        self.name = agent_name
-        self.type = agent_type
+def get_current_agents():
+    from flask import current_app
+    def build_a_generator(path):
+        for n_entry in scandir(path):
+            if n_entry.is_dir():
+                yield from build_a_generator(n_entry.path)
+            elif n_entry.path.endswith("agent.xml"):
+                yield extract_core_information_agent_record(n_entry.path)
+    return build_a_generator(current_app.config["AGENTS_PATH"])
 
-    def __str__(self):
-        d = {"name": self.name,
-             "type": self.type}
-        return jsonify(d)
+def expand_agents_list(term=None, identifier=None):
+    a_generator = get_current_agents()
+    tally = 1
+    output = {}
+    for n_item in a_generator:
+        row_dict = {'name':n_item.name, 'type':n_item.type,
+                    'identifier':n_item.identifier, 'events':n_item.events})
+        if term and isinstance(term, str)
+            if term in n_item.name:
+                output[tally] = row_dict
+        elif identifier:
+            if n_item.identifer.strip() == identifier.strip():
+                output[tally] = row_dict
+                break
+        else:
+            output[tally] = row_dict
+        tally += 1
+    return output
+
+def is_there_a_result(api_category, a_dict):
+    if a_dict.keys() == 0:
+        return APIResponse("fail", data={api_category: "no results"})
+    else:
+        return APIResponse("success", data={api_category: a_dict)}
 
 def evaluate_input(a_dict):
     from flask import current_app
@@ -36,65 +61,56 @@ def evaluate_input(a_dict):
         if key not in current_app.config["VALID_KEYS"]:
             return (False, "{} is not a legal key")
         elif not re.compile(current_app.config[key.upper()]).match(value):
-            return (False, "{} does not match required specification for key {}".\
-            format(value, key))
+            return (False, "{} does not match required ".format(value) +\
+                    "specification for key {}".format(key))
     return True
 
-def get_current_agents():
-    from flask import current_app
-    return build_a_generator(current_app.config["AGENTS_PATH"])
+def get_a_new_or_modified_premis_agent_record(dto):
+    return create_new_premis_agent(current_app.config["AGENTS_PATH"], dto,
+                                   edit_identifier=data.get("identifier"))
 
-def build_a_generator(path):
-    for n_entry in scandir(path):
-        if n_entry.is_dir():
-            yield from build_a_generator(n_entry.path)
-        elif n_entry.path.endswith("agent.xml"):
-            yield extract_core_information_agent_record(n_entry.path)
+def create_or_modify_premis_record(objid, data):
+    from flask import current_app
+    test_result = evaluate_input(data)
+    if test_result:
+        match = expand_agent_list(identifier=objid)
+        get_a_new_or_modified_premis_record(objid,)
+        agent_path = join(current_app.config["AGENTS_PATH"], identifier_to_path(objid), "arf")
+        create_new_premis_agent(agent_path, data, edit_identifier=data.get("identifier"))
+    else:
+        return False
+
+def add_linked_event_to_premis_record(objid, eventid):
+    from flask import current_app
+    match = expand_agent_list(identifier=objid)
+    if len(match) > 0:
+        agent_path = join(current_app.config["AGENTS_PATH"],
+                          str(identifer_to_path(match[0].identifier)),
+                          "arf")
+        return(add_an_event_to_agent_record(agent_path, eventid)
 
 class AllAgents(Resource):
     def get(self):
         try:
-            agents_generator = get_current_agents()
             query = request.args.get("term")
-            tally = 1
-            answer = {}
-            if query:
-                # need to return any agent record with word in query variable
-                # in the agent name element
-                for n_agent in agents_generator:
-                    if query in n_agent.name:
-                        row_dict = {'agent name':n_agent.name, 'agent role': n_agent.role,
-                                    'agent type': n_agent.type}
-                        answer[tally] = row_dict
-                        tally += 1
-            else:
-                # need to return a list of all agents in the system
-                tally = 1
-                for n_agent in agents_generator:
-                    row_dict = {'agent name':n_agent.name, 'agent role': n_agent.role,
-                                'agent type': n_agent.type}
-                    answer[tally] = row_dict
-                    tally += 1
-            if len(answer.keys()) == 0:
-                resp = APIResponse("success", data={"agents": "no results"})
-            else:
-                resp = APIResponse(answer["status"], data={"agents": answer})
+            answer = expand_agents_list(term=query)
+            resp = is_there_a_result("agents", answer)
             return jsonify(resp.dictify())
         except Exception as error:
             return jsonify(_EXCEPTION_HANDLER.handle(error).dictify())
 
     def post(self):
-        # need to post a new agent record containing information from post data
         from flask import current_app
         try:
             data = request.get_json(force=True)
-            test_result = evaluate_input(data)
-            if test_result:
-                new_agent = DataTransferObject(data["name"], data["type"])
-                new_agent = create_new_premis_agent(current_app.config["AGENTS_PATH"], new_agent)
-                resp = APIResponse("success", data={"result":"created", "identifier": new_agent})
+            dto = namedtuple("adto", "edit_fields identifier record_root " + \
+                             ' '.join(data.get("fields")))(data.get("edit_fields"), None,
+                             current_app.config["AGENTS_PATH"], *[data.get(x) for x in data.get("fields")])
+            was_it_made = create_or_modify_premis_record(dto)
+            if was_it_made[0]:
+                resp = APIResponse("success", data={'agents':{'result':'new', 'identifier': was_it_made[1]})
             else:
-                resp = APIResponse("fail", data={"result": "not created"})
+                resp = APIResponse("fail", errors=["could not create a new agent record"])
             return jsonify(resp.dictify())
         except Exception as error:
             return jsonify(_EXCEPTION_HANDLER.handle(error).dictify())
@@ -102,98 +118,64 @@ class AllAgents(Resource):
 class ASpecificAgent(Resource):
     def get(self, premisid):
         try:
-            agents_generator = get_current_agents()
-            answer = None
-            for n_agent in agents_generator:
-                if n_agent.identifier == premisid:
-                    answer = n_agent
-            if answer:
-                output = {"status":"success", "agent_name":answer.name, "agent_role":answer.role,
-                          "agent_type":answer.type, "loc": join("/agent", answer.identifier)}
-            else:
-                output = {"status":"fail", "error":"no results"}
-            resp = APIResponse(output["status"], data=output)
+            query = request.args.get("term")
+            answer = expand_agents_list(identifier=query)
+            resp = is_there_a_result("agent", answer)
             return jsonify(resp.dictify())
         except Exception as error:
             return jsonify(_EXCEPTION_HANDLER.handle(error).dictify())
 
     def post(self, premisid):
-        # need to post an updated agent record for the agent with premisid
+        from flask import current_app
         try:
-            agents_generator = get_current_agents()
-            answer = None
-            for n_agent in agents_generator:
-                if n_agent.identifier == premisid:
-                    answer = n_agent
-            if answer:
-                data = request.get_json(force=True)
-                test_result = evaluate_input(data)
-                if test_result:
-                    edited_field_name = data.get("field")
-                    edited_field_value = data.get("value")
-                    new_agent = create_new_premis_agent(current_app.config["AGENTS_PATH"], new_agent, edit_identifier=answer.identifier)
-                    resp = APIResponse("success", data={"field":edited_field, "value":edited_value, "identifier":answer.identifier})
-                else:
-                    resp = APIResponse("fail", data={"result": test_result[1]})
+            data = request.get_json(force=True)
+            dto = namedtuple("adto", "edit_fields identifier record_root " + \
+                             ' '.join(data.get("fields")))(data.get("edit_fields"), premisid,
+                             current_app.config["AGENTS_PATH"], *[data.get(x) for x in data.get("fields")])
+            was_it_made = create_or_modify_premis_record(dto)
+            if was_it_made[0]:
+                resp = APIResponse("success", data={'agents':{'result':'new', 'identifier': was_it_made[1]})
             else:
-                resp = APIResponse("fail", data={"result":"no results"})
+                resp = APIResponse("fail", errors=["could not create a new agent record"])
             return jsonify(resp.dictify())
-
-        except Exception as error:
-            return jsonify(_EXCEPTION_HANDLER.handle(error).dictify())
         except Exception as error:
             return jsonify(_EXCEPTION_HANDLER.handle(error).dictify())
 
 class AgentEvents(Resource):
     def get(self, premisid):
-        # need to get the premisid given, locate the agent with that 
-        # premisid as its identifier, and retrieve the events associated 
-        # with that agent. It should then package up those events records 
-        # into a dictionary for return as an APIResponse
         try:
-            agents_generator = get_current_agents()
-            answer = None
-            for n_agent in agents_generator:
-                if n_agent.identifier == premisid:
-                    answer = n_agent
-            if answer:
-                output = {"status":"success",
-                          "agent_loc": join("/agents", answer.identifier),
-                          "events":[]}
-                events_dict = {}
-                for n_event in n_agent.events:
-                    event_loc = join(n_agent.identiifer, "/events", n_event.identifier)
-                    event_dict = {"loc":event_loc}
-                    output["events"].append(event_dict)
+            answer = expand_agents_list(identifier=premisid)
+            tally = 1
+            if len(answer.get("events")) == 0:
+                resp = APIResponse("success", data={"agent events": self._populate_output(answer)})
             else:
-                output = {"status":"failure", "error":"no results"}
-            resp = APIResponse(output["status"], data=output)
+                resp = APIResponse("fail", data={"agent events": "no results"})
             return jsonify(resp.dictify())
         except Exception as error:
             return jsonify(_EXCEPTION_HANDLER.handle(error).dictify())
 
     def post(self, premisid):
-        # need to get the premisid id given, locate the agent with that premisid 
-        # as its identiifier, and create an premis event out of the data passed 
-        # in the post data and finally attach that new event to the agent identified.
         try:
-            agents_generator = get_current_agents()
-            answer = None
-            for n_agent in agents_generator:
-                if n_agent.identifier == premisid:
-                    answer = n_agent
-            if answer:
-                data = request.get_json(force=True)
-                test_result = evaluate_input(data)
-                if test_result:
-                    resp = APIResponse("success", data=data).dictify()
-                else:
-                    resp = APIResponse("fail", data={"result": test_result[1]})
+            data = request.get_json(force=True)
+            dto = namedtuple("edto", "identifier record_root event_id")\
+                            (premisid, current_app.config["AGENTS_PATH"], data.get("linkedevent"))
+            was_it_added = add_event_to_a_premis_agent(dto)
+            if was_it_added:
+                resp  = APIResponse("success",
+                                    data={"agent event": {"result":"added event",
+                                                          "identifier": premisid,
+                                                          "new_event":data.get("eventid")}})
             else:
-                resp = APIResponse("fail", data={"result":"no results"})
+                resp = APIResponse("fail", errors=["could not attach event {} to {}".format(data.get("linkedevent"), premisid)])
             return jsonify(resp.dictify())
         except Exception as error:
             return jsonify(_EXCEPTION_HANDLER.handle(error).dictify())
+
+    def _populate_output(answer_dict):
+        out = {'agent': answer.get("identifier")}
+        for n_event in answer_dict.get("events"):
+            out['events'] = n_event.get("identifier")
+        return out
 
 # Create our app, hook the API to it, and add our resources
 BP = Blueprint("ldragentsapi", __name__)

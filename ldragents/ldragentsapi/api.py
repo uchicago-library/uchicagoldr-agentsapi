@@ -35,8 +35,8 @@ def expand_agents_list(term=None, identifier=None):
     output = {}
     for n_item in a_generator:
         row_dict = {'name':n_item.name, 'type':n_item.type,
-                    'identifier':n_item.identifier, 'events':n_item.events})
-        if term and isinstance(term, str)
+                    'identifier':n_item.identifier, 'events':n_item.events}
+        if term and isinstance(term, str):
             if term in n_item.name:
                 output[tally] = row_dict
         elif identifier:
@@ -52,7 +52,7 @@ def is_there_a_result(api_category, a_dict):
     if a_dict.keys() == 0:
         return APIResponse("fail", data={api_category: "no results"})
     else:
-        return APIResponse("success", data={api_category: a_dict)}
+        return APIResponse("success", data={api_category: a_dict})
 
 def evaluate_input(a_dict):
     from flask import current_app
@@ -87,7 +87,7 @@ def add_linked_event_to_premis_record(objid, eventid):
         agent_path = join(current_app.config["AGENTS_PATH"],
                           str(identifer_to_path(match[0].identifier)),
                           "arf")
-        return(add_an_event_to_agent_record(agent_path, eventid)
+        return add_an_event_to_agent_record(agent_path, eventid)
 
 class AllAgents(Resource):
     def get(self):
@@ -108,7 +108,7 @@ class AllAgents(Resource):
                              current_app.config["AGENTS_PATH"], *[data.get(x) for x in data.get("fields")])
             was_it_made = create_or_modify_premis_record(dto)
             if was_it_made[0]:
-                resp = APIResponse("success", data={'agents':{'result':'new', 'identifier': was_it_made[1]})
+                resp = APIResponse("success", data={'agents':{'result':'new', 'identifier': was_it_made[1]}})
             else:
                 resp = APIResponse("fail", errors=["could not create a new agent record"])
             return jsonify(resp.dictify())
@@ -134,7 +134,7 @@ class ASpecificAgent(Resource):
                              current_app.config["AGENTS_PATH"], *[data.get(x) for x in data.get("fields")])
             was_it_made = create_or_modify_premis_record(dto)
             if was_it_made[0]:
-                resp = APIResponse("success", data={'agents':{'result':'new', 'identifier': was_it_made[1]})
+                resp = APIResponse("success", data={'agents':{'result':'new', 'identifier': was_it_made[1]}})
             else:
                 resp = APIResponse("fail", errors=["could not create a new agent record"])
             return jsonify(resp.dictify())

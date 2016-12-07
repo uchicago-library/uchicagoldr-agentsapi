@@ -88,7 +88,7 @@ class AllAgents(Resource):
                              current_app.config["AGENTS_PATH"], *[data.get(x) for x in data.get("fields")])
             was_it_made = create_or_edit_an_agent_record(dto)
             if was_it_made[0]:
-                resp = APIResponse("success", data={'agents':{'result':'new', 'identifier': was_it_made[1]}})
+                resp = APIResponse("success", data={'agents':{"result":"new agent created", "identifier": was_it_made[1]}})
             else:
                 resp = APIResponse("fail", errors=["could not create a new agent record"])
             return jsonify(resp.dictify())

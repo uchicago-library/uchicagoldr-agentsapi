@@ -84,7 +84,7 @@ class AllAgents(Resource):
         try:
             data = request.get_json(force=True)
             dto = namedtuple("adto", "edit_fields identifier root " + \
-                             ' '.join(data.get("fields")))(data.get("edit_fields"), None,
+                             ' '.join(data.get("fields")))(data.get("fields"), None,
                              current_app.config["AGENTS_PATH"], *[data.get(x) for x in data.get("fields")])
             was_it_made = create_or_edit_an_agent_record(dto)
             if was_it_made[0]:

@@ -1,7 +1,8 @@
+from sys import stderr, version_info
 from flask import g, jsonify, Blueprint, request, send_file, make_response
 from flask_restful import Resource, Api, reqparse
-from os import scandir
-from os.path import join
+from os import listdir
+from os.path import isdir, join
 import re
 from uuid import uuid4
 #from werkzeug.utils import secure_filename
@@ -22,11 +23,12 @@ _EXCEPTION_HANDLER = APIExceptionHandler()
 def get_current_agents():
     from flask import current_app
     def build_a_generator(path):
-        for n_entry in scandir(path):
-            if n_entry.is_dir():
-                yield from build_a_generator(n_entry.path)
-            elif n_entry.path.endswith("agent.xml"):
-                yield extract_core_information_agent_record(n_entry.path)
+        for n_entry in listdir(path):
+            n_entry = join(path, n_entry)
+            if isdir(n_entry):
+                yield from build_a_generator(n_entry)
+            elif n_entry.endswith("agent.xml"):
+                yield extract_core_information_agent_record(n_entry)
     return build_a_generator(current_app.config["AGENTS_PATH"])
 
 def expand_agents_list(term=None, identifier=None):
@@ -72,6 +74,7 @@ def evaluate_input(a_dict):
 class AllAgents(Resource):
     def get(self):
         try:
+            stderr.write(str(version_info))
             query = request.args.get("term")
             answer = expand_agents_list(term=query)
             resp = is_there_a_result("agents", answer)
@@ -83,9 +86,11 @@ class AllAgents(Resource):
         from flask import current_app
         try:
             data = request.get_json(force=True)
+            print(data)
             dto = namedtuple("adto", "edit_fields identifier root " + \
                              ' '.join(data.get("fields")))(data.get("fields"), None,
                              current_app.config["AGENTS_PATH"], *[data.get(x) for x in data.get("fields")])
+            print(dto)
             was_it_made = create_or_edit_an_agent_record(dto)
             if was_it_made[0]:
                 resp = APIResponse("success", data={'agents':{"result":"new agent created", "identifier": was_it_made[1]}})
@@ -124,6 +129,7 @@ class AgentEvents(Resource):
     def get(self, premisid):
         try:
             answer = expand_agents_list(identifier=premisid)
+            print(answer)
             tally = 1
             if len(list(answer.keys())) == 1:
                 resp = APIResponse("success", data={"agent events": self._populate_output(answer)})
@@ -154,8 +160,10 @@ class AgentEvents(Resource):
     def _populate_output(self, answer_dict):
         keynum = list(answer_dict.keys())[0]
         out = {'agent': answer_dict.get(keynum).get("identifier"), "events":[]}
+        print(out)
         for n_event in answer_dict.get(keynum).get("events"):
-            out['events'].append(n_event.get("identifier"))
+            print(n_event)
+            out['events'].append(n_event)
         return out
 
 # Create our app, hook the API to it, and add our resources
